@@ -11,7 +11,7 @@ Notes:
     outside of the class that could potentially be useful elsewhere.
 """
 
-from sympy.matrices import Matrix, zeros
+from sympy.matrices import BlockMatrix,Matrix, zeros
 from sympy.core.symbol import Symbol
 
 class Sym_UTB_Matrix:
@@ -60,6 +60,84 @@ class Sym_UTB_Matrix:
     ##################
     # object methods
     ##################
+    
+    def exp_deriv_generators(self, params):
+        '''
+        constructs the generators for computing the first derivative of the
+        time ordered exponential of self, with respect to params
+        
+        Note: I'll need to either add in stuff that keeps track of where the
+        blocks go, or just have a convention that is maintained everywhere.
+        
+        Convention is easier, but it might be nice to also return some data
+        structure with this info
+        '''
+        
+        D,C = self.parameter_decomposition(params)
+        
+        
+        new_mats= []
+        
+        for sys_idx in range(len(self.mat_list)):
+            G = self.mat_list[sys_idx]
+            m0 = zeros(self.shape[sys_idx])
+            
+            for d_idx in range(len(params)):
+                
+                A = C[d_idx].mat_list[sys_idx]
+                new_mats.append(Matrix(BlockMatrix(
+                        [[G, A], 
+                         [m0, G]]
+                        )))
+        
+        return Sym_UTB_Matrix(new_mats)
+        
+    
+    def parameter_decomposition(self, params):
+        '''
+        Given a list of parameters, which should be a list of commutative
+        symbols, returns a list of Sym_UTB_Matrix objects, representing
+        the parameter decomp.
+        
+        That is, for parameters [a[0], ..., a[k]], returns a list 
+        [D, M0, ..., Mk] s.t. self = M0 + a[0]*M0 + ... + a[k]*Mk
+        
+        Note: this function assumes that each matrix element of self
+        is an affine combination with coefficients a[0], ..., a[k], which
+        will be true for these control problems, but of course is not true
+        in general
+        
+        May want to change to affine control decomp (or something)
+        '''
+        
+        D = self.subs({a : 0 for a in params})
+        
+        M = [self.diff(a) for a in params]
+        
+        return D,M
+    
+    def subs(self, sub_dict):
+        '''
+        substitute symbols in mat_list
+        '''
+        return Sym_UTB_Matrix([A.subs(sub_dict) for A in self.mat_list])
+    
+    
+    def diff(self, sym):
+        '''
+        differentiation with respect to a symbol
+        '''
+        return Sym_UTB_Matrix([A.diff(sym) for A in self.mat_list])
+        
+    
+    def direct_sum(self,other):
+        '''
+        direct sum two Sym_UTB_Matrix objects
+        '''
+        new_list = self.mat_list.copy()
+        new_list.extend(other.mat_list)
+        
+        return Sym_UTB_Matrix(new_list)
     
     def add(self,other):
         '''
